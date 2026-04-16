@@ -13,6 +13,7 @@ def run_topsis(df, id_col, criteria_cols, weights, benefit_flags):
 
     work_df = df.copy()
 
+    # 抽出決策矩陣
     X = work_df[criteria_cols].astype(float).values
 
     # 權重標準化
@@ -27,6 +28,7 @@ def run_topsis(df, id_col, criteria_cols, weights, benefit_flags):
     # 加權
     V = R * weights
 
+    # 理想解 / 負理想解
     A_plus = []
     A_minus = []
 
@@ -42,10 +44,14 @@ def run_topsis(df, id_col, criteria_cols, weights, benefit_flags):
     A_plus = np.array(A_plus)
     A_minus = np.array(A_minus)
 
+    # 距離
     D_plus = np.sqrt(((V - A_plus) ** 2).sum(axis=1))
     D_minus = np.sqrt(((V - A_minus) ** 2).sum(axis=1))
+
+    # C值
     C = D_minus / (D_plus + D_minus)
 
+    # 排名結果
     result_df = pd.DataFrame({
         id_col: work_df[id_col].values,
         "D+": D_plus,
@@ -56,9 +62,11 @@ def run_topsis(df, id_col, criteria_cols, weights, benefit_flags):
     result_df = result_df.sort_values("C", ascending=False).reset_index(drop=True)
     result_df.insert(0, "Rank", range(1, len(result_df) + 1))
 
+    # 正規化矩陣 R
     R_df = pd.DataFrame(R, columns=[f"R_{c}" for c in criteria_cols])
     R_df.insert(0, id_col, work_df[id_col].values)
 
+    # 加權矩陣 V
     V_df = pd.DataFrame(V, columns=[f"V_{c}" for c in criteria_cols])
     V_df.insert(0, id_col, work_df[id_col].values)
 
