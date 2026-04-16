@@ -8,11 +8,11 @@ from topsis import run_topsis
 st.set_page_config(page_title="TOPSIS 分析網站", layout="centered")
 
 st.title("TOPSIS 分析網站")
-st.write("可上傳 CSV / Excel / ODS，選擇識別欄位、分析指標、成本/效益型與權重後，自動完成 TOPSIS 分析。")
+st.write("上傳 CSV / Excel / ODS，選擇識別欄位、分組欄位、分析指標、成本/效益型與權重後，即可完成 TOPSIS 分析。")
 
-# =========================
+# =========================================================
 # 工具函式
-# =========================
+# =========================================================
 def load_file(uploaded_file):
     name = uploaded_file.name.lower()
 
@@ -50,9 +50,9 @@ def show_small_df(df, width=850, height=260):
         height=height
     )
 
-# =========================
+# =========================================================
 # 上傳資料
-# =========================
+# =========================================================
 uploaded_file = st.file_uploader(
     "請上傳資料檔案（CSV / Excel / ODS）",
     type=["csv", "xlsx", "xls", "ods"]
@@ -74,9 +74,9 @@ show_small_df(df_raw, width=900, height=220)
 
 all_columns = df_raw.columns.tolist()
 
-# =========================
-# 基本設定
-# =========================
+# =========================================================
+# 欄位設定
+# =========================================================
 st.subheader("欄位設定")
 
 id_col = st.selectbox(
@@ -96,9 +96,9 @@ if use_group:
     group_values = df_raw[group_col].dropna().unique().tolist()
     group_values = sorted(group_values, key=lambda x: str(x))
 
-# =========================
-# 指標選擇
-# =========================
+# =========================================================
+# 指標設定
+# =========================================================
 st.subheader("指標設定")
 
 candidate_metric_cols = [c for c in all_columns if c not in [id_col, group_col]]
@@ -120,9 +120,9 @@ with st.expander("查看缺值統計"):
     na_info.columns = ["欄位", "缺值數量"]
     show_small_df(na_info, width=500, height=220)
 
-# =========================
-# 成本型 / 效益型
-# =========================
+# =========================================================
+# 成本型 / 效益型設定
+# =========================================================
 st.subheader("成本型 / 效益型設定")
 
 metric_types = {}
@@ -134,9 +134,9 @@ for col in metric_cols:
         key=f"type_{col}"
     )
 
-# =========================
+# =========================================================
 # 權重設定
-# =========================
+# =========================================================
 st.subheader("權重設定")
 st.caption("可自行調整權重，系統會自動標準化，讓總和 = 1。")
 
@@ -165,9 +165,9 @@ run_btn = st.button("開始分析", type="primary")
 if not run_btn:
     st.stop()
 
-# =========================
-# 分析函式
-# =========================
+# =========================================================
+# 主分析函式
+# =========================================================
 def analyze_one_dataframe(df_input: pd.DataFrame, title: str):
     st.markdown("---")
     st.header(title)
@@ -181,14 +181,14 @@ def analyze_one_dataframe(df_input: pd.DataFrame, title: str):
     df_sub = df_sub[df_sub[id_col].str.lower() != "none"]
     df_sub = df_sub[df_sub[id_col].str.lower() != "nan"]
 
-    # 刪除缺值列
+    # 刪除數值缺值
     df_sub = df_sub.dropna(subset=metric_cols).reset_index(drop=True)
 
     if df_sub.empty:
         st.warning("此分組沒有可用資料。")
         return
 
-    # 如果識別欄位有重複，就做平均
+    # 若識別欄位重複，自動平均
     if df_sub[id_col].duplicated().any():
         st.info(f"偵測到「{id_col}」有重複值，系統將自動取平均。")
         df_sub = df_sub.groupby(id_col, as_index=False)[metric_cols].mean()
@@ -207,46 +207,32 @@ def analyze_one_dataframe(df_input: pd.DataFrame, title: str):
         benefit_flags=benefit_flags
     )
 
-    # 用 tabs 分開顯示，避免擠在一起看起來像消失
-    tab1, tab2, tab3, tab4 = st.tabs(
-        ["原始分析資料", "正規化矩陣 R", "加權矩陣 V", "排名結果"]
-    )
+    # =====================================================
+    # 最上面先顯示最終結果
+    # =====================================================
+    top3 = result["result_df"].head(min(3, len(result["result_df"])))
 
-    with tab1:
-        st.subheader("整理後的分析資料")
-        show_small_df(result["input_df"], width=900, height=260)
-
-    with tab2:
-        st.subheader("正規化矩陣 R")
-        show_small_df(result["R_df"], width=900, height=260)
-
-    with tab3:
-        st.subheader("加權矩陣 V")
-        show_small_df(result["V_df"], width=900, height=260)
-
-    with tab4:
-        st.subheader("理想解與負理想解")
-        ideal_df = pd.DataFrame({
-            "指標": metric_cols,
-            "A+": result["A_plus"],
-            "A-": result["A_minus"]
-        })
-        show_small_df(ideal_df, width=500, height=220)
-
-        st.subheader("排名結果")
-        show_small_df(result["result_df"], width=900, height=260)
-
-        st.download_button(
-            label="下載排名結果 CSV",
-            data=to_csv_download(result["result_df"]),
-            file_name=f"{title}_ranking.csv",
-            mime="text/csv"
+    if len(top3) >= 3:
+        st.success(
+            f"🥇 第1名：{top3.iloc[0][id_col]}（C = {top3.iloc[0]['C']:.6f}）\n\n"
+            f"🥈 第2名：{top3.iloc[1][id_col]}（C = {top3.iloc[1]['C']:.6f}）\n\n"
+            f"🥉 第3名：{top3.iloc[2][id_col]}（C = {top3.iloc[2]['C']:.6f}）"
         )
 
-    # -------------------------
-    # Plotly 圖表（解決中文字型問題）
-    # -------------------------
-    st.subheader("TOPSIS C值排名長條圖")
+    st.subheader("🏆 最終排名結果")
+    show_small_df(result["result_df"], width=900, height=260)
+
+    st.download_button(
+        label="下載排名結果 CSV",
+        data=to_csv_download(result["result_df"]),
+        file_name=f"{title}_ranking.csv",
+        mime="text/csv"
+    )
+
+    # =====================================================
+    # 圖表
+    # =====================================================
+    st.subheader("📊 TOPSIS C值排名長條圖")
 
     plot_df = result["result_df"][[id_col, "C"]].copy()
     plot_df[id_col] = plot_df[id_col].astype(str).str.strip()
@@ -268,12 +254,40 @@ def analyze_one_dataframe(df_input: pd.DataFrame, title: str):
         yaxis_title="C值",
         margin=dict(l=30, r=30, t=60, b=80)
     )
-
     st.plotly_chart(fig, use_container_width=False)
 
-# =========================
-# 單次分析 / 分組分析
-# =========================
+    # =====================================================
+    # 詳細資料放後面
+    # =====================================================
+    with st.expander("查看詳細分析資料與矩陣"):
+        tab1, tab2, tab3, tab4 = st.tabs(
+            ["原始分析資料", "正規化矩陣 R", "加權矩陣 V", "理想解 / 負理想解"]
+        )
+
+        with tab1:
+            st.subheader("原始分析資料")
+            show_small_df(result["input_df"], width=900, height=260)
+
+        with tab2:
+            st.subheader("正規化矩陣 R")
+            show_small_df(result["R_df"], width=900, height=260)
+
+        with tab3:
+            st.subheader("加權矩陣 V")
+            show_small_df(result["V_df"], width=900, height=260)
+
+        with tab4:
+            st.subheader("理想解與負理想解")
+            ideal_df = pd.DataFrame({
+                "指標": metric_cols,
+                "A+": result["A_plus"],
+                "A-": result["A_minus"]
+            })
+            show_small_df(ideal_df, width=500, height=220)
+
+# =========================================================
+# 單組 / 分組分析
+# =========================================================
 try:
     if use_group:
         for g in group_values:
