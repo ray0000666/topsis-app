@@ -3,24 +3,16 @@ import pandas as pd
 
 
 def run_topsis(df, id_col, criteria_cols, weights, benefit_flags):
-    """
-    df: 已清理好的 DataFrame
-    id_col: 識別欄位名稱
-    criteria_cols: 指標欄位列表
-    weights: 權重列表（可未正規化）
-    benefit_flags: True=效益型, False=成本型
-    """
 
     work_df = df.copy()
 
-    # 抽出決策矩陣
     X = work_df[criteria_cols].astype(float).values
 
-    # 權重標準化
+    # 權重正規化
     weights = np.array(weights, dtype=float)
     weights = weights / weights.sum()
 
-    # 向量正規化
+    # 正規化
     denom = np.sqrt((X ** 2).sum(axis=0))
     denom[denom == 0] = 1e-12
     R = X / denom
@@ -28,7 +20,7 @@ def run_topsis(df, id_col, criteria_cols, weights, benefit_flags):
     # 加權
     V = R * weights
 
-    # 理想解 / 負理想解
+    # 理想解
     A_plus = []
     A_minus = []
 
@@ -51,7 +43,6 @@ def run_topsis(df, id_col, criteria_cols, weights, benefit_flags):
     # C值
     C = D_minus / (D_plus + D_minus)
 
-    # 排名結果
     result_df = pd.DataFrame({
         id_col: work_df[id_col].values,
         "D+": D_plus,
@@ -62,11 +53,9 @@ def run_topsis(df, id_col, criteria_cols, weights, benefit_flags):
     result_df = result_df.sort_values("C", ascending=False).reset_index(drop=True)
     result_df.insert(0, "Rank", range(1, len(result_df) + 1))
 
-    # 正規化矩陣 R
     R_df = pd.DataFrame(R, columns=[f"R_{c}" for c in criteria_cols])
     R_df.insert(0, id_col, work_df[id_col].values)
 
-    # 加權矩陣 V
     V_df = pd.DataFrame(V, columns=[f"V_{c}" for c in criteria_cols])
     V_df.insert(0, id_col, work_df[id_col].values)
 
